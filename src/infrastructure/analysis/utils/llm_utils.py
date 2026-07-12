@@ -16,6 +16,8 @@ from ....utils.resilience import CircuitBreaker, GlobalRateLimiter
 from ...config.config_manager import ConfigManager
 from .structured_output_schema import JSONObject, JSONValue
 
+MODEL_USAGE_SOURCE = "daily_analysis"
+
 _circuit_breakers = {}
 
 
@@ -326,6 +328,7 @@ async def call_provider_with_retry(
                 umo=umo or "plugin:qq_group_daily_analysis",
                 provider=provider,
                 provider_id=pid,
+                source=MODEL_USAGE_SOURCE,
                 response=resp,
                 status="completed",
                 started_at=started_at,
@@ -340,6 +343,7 @@ async def call_provider_with_retry(
                     umo=umo or "plugin:qq_group_daily_analysis",
                     provider=provider,
                     provider_id=pid,
+                    source=MODEL_USAGE_SOURCE,
                     status="aborted",
                     started_at=started_at,
                     ended_at=time.time(),
@@ -352,6 +356,7 @@ async def call_provider_with_retry(
                     umo=umo or "plugin:qq_group_daily_analysis",
                     provider=provider,
                     provider_id=pid,
+                    source=MODEL_USAGE_SOURCE,
                     status="error",
                     started_at=started_at,
                     ended_at=time.time(),

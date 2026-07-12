@@ -58,6 +58,7 @@ async def test_non_streaming_success_records_once(monkeypatch):
     assert calls[0]["status"] == "completed"
     assert calls[0]["provider_id"] == "provider"
     assert calls[0]["response"] is response
+    assert calls[0]["source"] == "daily_analysis"
 
 
 @pytest.mark.asyncio
