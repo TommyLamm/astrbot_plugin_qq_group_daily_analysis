@@ -5,9 +5,11 @@ LLM API请求处理工具模块
 
 import asyncio
 import random
+import time
 
 from astrbot.api.provider import LLMResponse
 from astrbot.api.star import Context
+from astrbot_model_usage import schedule_model_usage
 
 from ....utils.logger import logger
 from ....utils.resilience import CircuitBreaker, GlobalRateLimiter
@@ -295,6 +297,8 @@ async def call_provider_with_retry(
             logger.warning(f"Provider {pid} 熔断器已打开，跳过本次请求")
             raise Exception("Circuit breaker open")
 
+        provider = None
+        started_at = None
         try:
             async with GlobalRateLimiter.get_instance().semaphore:
                 llm_kwargs: dict[str, JSONValue] = {
@@ -308,13 +312,50 @@ async def call_provider_with_retry(
                 if extra_generate_kwargs:
                     llm_kwargs.update(extra_generate_kwargs)
 
+                try:
+                    provider = context.get_provider_by_id(provider_id=pid)
+                except Exception:
+                    provider = None
+                started_at = time.time()
                 if enable_streaming_llm_call:
                     resp = await _call_provider_stream(context, pid, llm_kwargs)
                 else:
                     resp = await context.llm_generate(**llm_kwargs)
+            schedule_model_usage(
+                context=context,
+                umo=umo or "plugin:qq_group_daily_analysis",
+                provider=provider,
+                provider_id=pid,
+                response=resp,
+                status="completed",
+                started_at=started_at,
+                ended_at=time.time(),
+            )
             cb.record_success()
             return resp
+        except asyncio.CancelledError:
+            if started_at is not None:
+                schedule_model_usage(
+                    context=context,
+                    umo=umo or "plugin:qq_group_daily_analysis",
+                    provider=provider,
+                    provider_id=pid,
+                    status="aborted",
+                    started_at=started_at,
+                    ended_at=time.time(),
+                )
+            raise
         except Exception as err:
+            if started_at is not None:
+                schedule_model_usage(
+                    context=context,
+                    umo=umo or "plugin:qq_group_daily_analysis",
+                    provider=provider,
+                    provider_id=pid,
+                    status="error",
+                    started_at=started_at,
+                    ended_at=time.time(),
+                )
             if r_format is not None and _is_response_format_unsupported_error(err):
                 raise err
             cb.record_failure()
